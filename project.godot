@@ -1,0 +1,4 @@
+[general]
+config_version=4
+[rendering]
+default_pipeline="res://default_pipeline.tres"
