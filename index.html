@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1400, initial-scale=1.0">
+    <title>Nucleares - Nuclear Reactor Simulator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Top Bar -->
+        <div id="top-bar">
+            <div id="plant-name">NUCLEARES - PWR Nuclear Power Plant Simulator</div>
+            <div id="clock"></div>
+            <div id="game-speed">
+                <button onclick="setSpeed(0)" title="Pause">⏸</button>
+                <button onclick="setSpeed(1)" title="1x Speed">1x</button>
+                <button onclick="setSpeed(5)" title="5x Speed">5x</button>
+                <button onclick="setSpeed(10)" title="10x Speed">10x</button>
+            </div>
+        </div>
+
+        <!-- Alarm Bar -->
+        <div id="alarm-bar">
+            <div id="alarm-list"></div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="main-content">
+            <!-- Left Panel: Reactor Core -->
+            <div id="left-panel" class="panel">
+                <h2>REACTOR CORE</h2>
+                <div class="reactor-visual">
+                    <canvas id="reactor-canvas" width="280" height="200"></canvas>
+                </div>
+                <div class="gauge-row">
+                    <div class="gauge">
+                        <div class="gauge-label">Core Temp</div>
+                        <div class="gauge-bar-container">
+                            <div id="core-temp-bar" class="gauge-bar"></div>
+                        </div>
+                        <div id="core-temp-value" class="gauge-value">20°C</div>
+                    </div>
+                    <div class="gauge">
+                        <div class="gauge-label">Reactor Power</div>
+                        <div class="gauge-bar-container">
+                            <div id="reactor-power-bar" class="gauge-bar green"></div>
+                        </div>
+                        <div id="reactor-power-value" class="gauge-value">0%</div>
+                    </div>
+                </div>
+                <div class="gauge-row">
+                    <div class="gauge">
+                        <div class="gauge-label">Vessel Pressure</div>
+                        <div class="gauge-bar-container">
+                            <div id="vessel-pressure-bar" class="gauge-bar blue"></div>
+                        </div>
+                        <div id="vessel-pressure-value" class="gauge-value">1 bar</div>
+                    </div>
+                    <div class="gauge">
+                        <div class="gauge-label">Neutron Flux</div>
+                        <div class="gauge-bar-container">
+                            <div id="neutron-flux-bar" class="gauge-bar yellow"></div>
+                        </div>
+                        <div id="neutron-flux-value" class="gauge-value">0%</div>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>Control Rods Position: <span id="rod-pos-display">100%</span> (inserted)</label>
+                    <input type="range" id="control-rods" min="0" max="100" value="100" oninput="updateRodPosition(this.value)">
+                    <div class="rod-labels"><span>0% (Withdrawn)</span><span>100% (Inserted)</span></div>
+                </div>
+                <div class="control-group">
+                    <label>Fuel Status: <span id="fuel-status">NOT LOADED</span></label>
+                    <button id="fuel-btn" class="btn btn-warning" onclick="toggleFuel()">LOAD FUEL</button>
+                </div>
+            </div>
+
+            <!-- Center Panel: Systems -->
+            <div id="center-panel" class="panel">
+                <h2>PRIMARY & SECONDARY SYSTEMS</h2>
+                
+                <!-- Pressurizer -->
+                <div class="subsystem">
+                    <h3>Pressurizer</h3>
+                    <div class="inline-controls">
+                        <div class="switch-group">
+                            <label>Heaters</label>
+                            <button id="pzr-heater-btn" class="btn btn-small btn-off" onclick="toggleSwitch('pzrHeaters')">OFF</button>
+                        </div>
+                        <div class="switch-group">
+                            <label>Thermostat</label>
+                            <button id="pzr-thermo-btn" class="btn btn-small btn-off" onclick="toggleSwitch('pzrThermostat')">OFF</button>
+                        </div>
+                        <div class="mini-gauge">
+                            <span>PZR Pressure:</span>
+                            <span id="pzr-pressure-value">1 bar</span>
+                        </div>
+                        <div class="mini-gauge">
+                            <span>PZR Temp:</span>
+                            <span id="pzr-temp-value">20°C</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Primary Coolant -->
+                <div class="subsystem">
+                    <h3>Primary Coolant Loop</h3>
+                    <div class="inline-controls">
+                        <div class="switch-group">
+                            <label>Pump</label>
+                            <button id="primary-pump-btn" class="btn btn-small btn-off" onclick="toggleSwitch('primaryPump')">OFF</button>
+                        </div>
+                        <div class="slider-group">
+                            <label>Speed: <span id="primary-pump-speed-display">0</span>%</label>
+                            <input type="range" id="primary-pump-speed" min="0" max="100" value="0" oninput="updatePumpSpeed('primary', this.value)">
+                        </div>
+                        <div class="mini-gauge">
+                            <span>Flow Rate:</span>
+                            <span id="primary-flow-value">0 kg/s</span>
+                        </div>
+                        <div class="mini-gauge">
+                            <span>Coolant Temp:</span>
+                            <span id="primary-coolant-temp">20°C</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Steam Generator -->
+                <div class="subsystem">
+                    <h3>Steam Generator</h3>
+                    <div class="inline-controls">
+                        <div class="mini-gauge">
+                            <span>Steam Temp:</span>
+                            <span id="steam-temp-value">20°C</span>
+                        </div>
+                        <div class="mini-gauge">
+                            <span>Steam Pressure:</span>
+                            <span id="steam-pressure-value">0 bar</span>
+                        </div>
+                        <div class="mini-gauge">
+                            <span>Steam Flow:</span>
+                            <span id="steam-flow-value">0 kg/s</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secondary / Condenser -->
+                <div class="subsystem">
+                    <h3>Condenser & Secondary Loop</h3>
+                    <div class="inline-controls">
+                        <div class="switch-group">
+                            <label>Condenser Pump</label>
+                            <button id="condenser-pump-btn" class="btn btn-small btn-off" onclick="toggleSwitch('condenserPump')">OFF</button>
+                        </div>
+                        <div class="switch-group">
+                            <label>Vacuum</label>
+                            <button id="condenser-vacuum-btn" class="btn btn-small btn-off" onclick="toggleSwitch('condenserVacuum')">OFF</button>
+                        </div>
+                        <div class="slider-group">
+                            <label>Pump Speed: <span id="condenser-pump-speed-display">0</span>%</label>
+                            <input type="range" id="condenser-pump-speed" min="0" max="100" value="0" oninput="updatePumpSpeed('condenser', this.value)">
+                        </div>
+                        <div class="mini-gauge">
+                            <span>Vacuum:</span>
+                            <span id="condenser-vacuum-value">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secondary Pump -->
+                <div class="subsystem">
+                    <h3>Secondary Feedwater Pump</h3>
+                    <div class="inline-controls">
+                        <div class="switch-group">
+                            <label>Pump</label>
+                            <button id="secondary-pump-btn" class="btn btn-small btn-off" onclick="toggleSwitch('secondaryPump')">OFF</button>
+                        </div>
+                        <div class="slider-group">
+                            <label>Speed: <span id="secondary-pump-speed-display">0</span>%</label>
+                            <input type="range" id="secondary-pump-speed" min="0" max="100" value="0" oninput="updatePumpSpeed('secondary', this.value)">
+                        </div>
+                        <div class="mini-gauge">
+                            <span>Feed Flow:</span>
+                            <span id="secondary-flow-value">0 kg/s</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Turbine & Grid -->
+            <div id="right-panel" class="panel">
+                <h2>TURBINE & GRID</h2>
+
+                <!-- Turbine -->
+                <div class="subsystem">
+                    <h3>Steam Turbine</h3>
+                    <div class="gauge-row">
+                        <div class="gauge">
+                            <div class="gauge-label">Turbine RPM</div>
+                            <div class="gauge-bar-container">
+                                <div id="turbine-rpm-bar" class="gauge-bar cyan"></div>
+                            </div>
+                            <div id="turbine-rpm-value" class="gauge-value">0 RPM</div>
+                        </div>
+                        <div class="gauge">
+                            <div class="gauge-label">Generator Output</div>
+                            <div class="gauge-bar-container">
+                                <div id="generator-output-bar" class="gauge-bar green"></div>
+                            </div>
+                            <div id="generator-output-value" class="gauge-value">0 MW</div>
+                        </div>
+                    </div>
+                    <div class="inline-controls">
+                        <div class="switch-group">
+                            <label>MSCV (Main Steam)</label>
+                            <button id="mscv-btn" class="btn btn-small btn-off" onclick="toggleSwitch('mscv')">CLOSED</button>
+                        </div>
+                        <div class="slider-group">
+                            <label>MSCV Opening: <span id="mscv-opening-display">0</span>%</label>
+                            <input type="range" id="mscv-opening" min="0" max="100" value="0" oninput="updateMSCV(this.value)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generator & Grid -->
+                <div class="subsystem">
+                    <h3>Generator & Grid Connection</h3>
+                    <div class="inline-controls">
+                        <div class="switch-group">
+                            <label>Generator Mode</label>
+                            <button id="gen-mode-btn" class="btn btn-small btn-off" onclick="toggleSwitch('generatorMode')">MANUAL</button>
+                        </div>
+                        <div class="switch-group">
+                            <label>Circuit Breaker</label>
+                            <button id="breaker-btn" class="btn btn-small btn-off" onclick="toggleSwitch('circuitBreaker')">OPEN</button>
+                        </div>
+                    </div>
+                    <div class="synchroscope">
+                        <div class="gauge-label">Synchroscope</div>
+                        <canvas id="synchro-canvas" width="200" height="200"></canvas>
+                        <div id="synchro-status" class="synchro-status">NOT READY</div>
+                    </div>
+                </div>
+
+                <!-- City Demand -->
+                <div class="subsystem">
+                    <h3>City Power Grid</h3>
+                    <div class="inline-controls">
+                        <div class="switch-group">
+                            <label>City Connection</label>
+                            <button id="city-btn" class="btn btn-small btn-off" onclick="toggleSwitch('cityConnection')">DISCONNECTED</button>
+                        </div>
+                    </div>
+                    <div class="gauge-row">
+                        <div class="gauge">
+                            <div class="gauge-label">City Demand</div>
+                            <div class="gauge-bar-container">
+                                <div id="city-demand-bar" class="gauge-bar orange"></div>
+                            </div>
+                            <div id="city-demand-value" class="gauge-value">0 MW</div>
+                        </div>
+                        <div class="gauge">
+                            <div class="gauge-label">Power Supplied</div>
+                            <div class="gauge-bar-container">
+                                <div id="power-supplied-bar" class="gauge-bar green"></div>
+                            </div>
+                            <div id="power-supplied-value" class="gauge-value">0 MW</div>
+                        </div>
+                    </div>
+                    <div class="mini-gauge">
+                        <span>Grid Frequency:</span>
+                        <span id="grid-frequency-value">0 Hz</span>
+                    </div>
+                    <div class="mini-gauge" style="margin-top: 4px;">
+                        <span>Revenue:</span>
+                        <span id="revenue-value">$0</span>
+                    </div>
+                </div>
+
+                <!-- Emergency -->
+                <div class="subsystem emergency-panel">
+                    <h3>EMERGENCY SYSTEMS</h3>
+                    <div class="inline-controls">
+                        <button id="scram-btn" class="btn btn-danger btn-large" onclick="activateSCRAM()">SCRAM</button>
+                        <div class="switch-group">
+                            <label>External Power</label>
+                            <button id="ext-power-btn" class="btn btn-small btn-off" onclick="toggleSwitch('externalPower')">OFF</button>
+                        </div>
+                        <div class="switch-group">
+                            <label>Containment Spray</label>
+                            <button id="spray-btn" class="btn btn-small btn-off" onclick="toggleSwitch('containmentSpray')">OFF</button>
+                        </div>
+                    </div>
+                    <div class="inline-controls" style="margin-top: 8px;">
+                        <div class="mini-gauge">
+                            <span>Radiation:</span>
+                            <span id="radiation-value">0.1 mSv/h</span>
+                        </div>
+                        <div class="mini-gauge">
+                            <span>Containment:</span>
+                            <span id="containment-value">NORMAL</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom: Event Log -->
+        <div id="bottom-bar">
+            <h3>OPERATOR LOG</h3>
+            <div id="event-log"></div>
+        </div>
+
+        <!-- Game Over Overlay -->
+        <div id="game-over-overlay" class="hidden">
+            <div id="game-over-content">
+                <h1 id="game-over-title">MELTDOWN</h1>
+                <p id="game-over-message"></p>
+                <p id="game-over-stats"></p>
+                <button class="btn btn-warning btn-large" onclick="restartGame()">RESTART</button>
+            </div>
+        </div>
+
+        <!-- Start Screen Overlay -->
+        <div id="start-overlay">
+            <div id="start-content">
+                <h1>NUCLEARES</h1>
+                <h2>Nuclear Reactor Simulator</h2>
+                <p>You are the operator of a Pressurized Water Reactor (PWR) nuclear power plant. Your mission is to safely start the reactor, generate electricity, and supply power to the city.</p>
+                <div class="start-instructions">
+                    <h3>Startup Checklist:</h3>
+                    <ol>
+                        <li>Turn on External Power</li>
+                        <li>Activate Pressurizer heaters & thermostat</li>
+                        <li>Turn on Condenser Vacuum</li>
+                        <li>Load Fuel into the reactor</li>
+                        <li>Start Primary Coolant Pump (set to ~50%)</li>
+                        <li>Start Condenser Pump (~25%)</li>
+                        <li>Slowly withdraw Control Rods to increase power</li>
+                        <li>Once steam temp is above 100°C, start Secondary Pump</li>
+                        <li>Open MSCV to send steam to turbine</li>
+                        <li>Wait for turbine RPM to reach ~3000</li>
+                        <li>Use Synchroscope to synchronize, close Circuit Breaker</li>
+                        <li>Connect to city grid and supply power!</li>
+                    </ol>
+                </div>
+                <button class="btn btn-success btn-large" onclick="startGame()">START SIMULATION</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
