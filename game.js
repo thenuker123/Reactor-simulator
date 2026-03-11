@@ -190,18 +190,15 @@ function simulatePhysics(dt) {
     }
 
     // === Core Temperature ===
-    const heatGeneration = (state.reactorPower + state.decayHeat) * 5.0; // heat input
-    const coolantCooling = state.primaryPump && hasPower ? (state.primaryFlowRate / 1000) * 4.0 * Math.max(state.coreTemp - state.primaryCoolantTemp, 0) * 0.01 : 0;
-    const ambientCooling = (state.coreTemp - 20) * 0.001; // very slow ambient
-    const sprayCooling = state.containmentSpray && hasPower ? (state.coreTemp - 80) * 0.02 : 0;
+    const heatGeneration = (state.reactorPower + state.decayHeat) * 3.0; // heat input (reduced for balance)
+    const coolantCooling = state.primaryPump && hasPower ? (state.primaryFlowRate / 500) * 6.0 * Math.max(state.coreTemp - state.primaryCoolantTemp, 0) * 0.02 : 0;
+    const ambientCooling = (state.coreTemp - 20) * 0.005; // slow ambient
+    const sprayCooling = state.containmentSpray && hasPower ? (state.coreTemp - 80) * 0.08 : 0;
 
     state.coreTemp += (heatGeneration - coolantCooling - ambientCooling - sprayCooling) * dt;
     state.coreTemp = Math.max(20, state.coreTemp);
 
-    // === Vessel Pressure (follows core temp) ===
-    // In a real PWR, vessel pressure is maintained by the pressurizer
-    const targetVesselPressure = state.pzrPressure * (state.coreTemp / 350);
-    // Clamp to something reasonable
+    // === Vessel Pressure (follows core temp, maintained by pressurizer) ===
 
     // === Primary Coolant ===
     if (state.primaryPump && hasPower) {
@@ -211,8 +208,8 @@ function simulatePhysics(dt) {
     }
     // Coolant temp absorbs heat from core
     if (state.primaryFlowRate > 0) {
-        const heatTransfer = (state.coreTemp - state.primaryCoolantTemp) * 0.05;
-        state.primaryCoolantTemp = approach(state.primaryCoolantTemp, state.coreTemp - 30, 0.5 * dt);
+        const coolantTarget = 20 + (state.coreTemp - 20) * 0.85 * (1 - state.primaryFlowRate / 1200);
+        state.primaryCoolantTemp = approach(state.primaryCoolantTemp, coolantTarget, 1.0 * dt);
     } else {
         state.primaryCoolantTemp = approach(state.primaryCoolantTemp, state.coreTemp * 0.8, 0.1 * dt);
     }
