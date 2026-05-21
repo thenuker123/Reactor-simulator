@@ -32,7 +32,6 @@
         #   };
         # };
         android-emu = {
-          manager = "android";
         };
       };
     };
