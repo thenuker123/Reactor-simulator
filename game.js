@@ -1,231 +1,257 @@
 /*
- * NUCLEARES - Complex Reactor Simulator
- * Core simulation logic and Firebase integration
- */
+* NUCLEARES - High-Fidelity Reactor Simulation
+* Core Thermodynamic Engine, Grid Sync, and Firebase Cloud Logic
+*/
 
-// ===== GAME STATE =====
-const state = {
-    running: false,
-    time: 0,
-    revenue: 0,
+// ===== STATE VARIABLES =====
+let state = {
+    // Core Physics
+    coreTemperature: 20.0,
+    primaryPressure: 1.0,
+    boronConcentration: 0, // ppm
+    controlRodsDepth: 100, // %
+
+    // Secondary Loop
+    sgWaterLevel: 100.0, // %
+    secondaryPressure: 1.0, // Bar
+    mainSteamValveOpen: false,
+
+    // Turbine & Grid
+    turbineRpm: 0,
+    gridPhaseAngle: 0.0,
+    gridConnected: false,
+    gridDemand: 300, // MW
+
+    // Financials
+    accumulatedMoney: 0,
+
+    // System Status
+    isScrammed: false,
     gameOver: false,
-    uid: null, // Firebase anonymous user ID
-
-    // Reactor Core
-    coreTemp: 20,           // °C
-    waterLevel: 100,        // %
-    steamPressure: 0,       // bar
-    controlRodDepth: 100,   // % (100 = fully in)
-
-    // Primary Coolant Loop
-    coolantPumpOn: false,
-    coolantPumpOutput: 0,   // %
-    primaryFlowRate: 0,     // kg/s
-
-    // Turbine & Generator
-    turbineRPM: 0,          
-    generatorOutput: 0,     // MW
-
-    // Emergency
-    radiationLevel: 0.1,    // mSv/h
-    containmentStatus: 'NORMAL',
-    alarms: [],
+    user: null, // Firebase user object
 };
 
-// ===== CONSTANTS =====
-const TICK_RATE = 1000; // 1-second interval for the main game loop
-const SAVE_INTERVAL = 30000; // 30 seconds for autosave
-const MAX_CORE_TEMP = 1200;
-const MAX_STEAM_PRESSURE = 100;
-const PRESSURE_ALARM_THRESHOLD = 85;
+// ===== CONSTANTS & CONFIG =====
+const TICK_RATE_MS = 1000;
+const SAVE_INTERVAL_MS = 30000;
+const GRID_FREQUENCY_HZ = 50;
+const BASELINE_RPM = 3000;
+const MAX_TURBINE_RPM = 4000;
+const PHASE_LOCK_TOLERANCE = 5.0; // degrees
+const GRID_MISMATCH_PENALTY = 4000;
 
-// ===== DOM REFERENCES =====
-let logEl, alarmListEl;
+// DOM element references
+const DOMElements = {};
 
 // ===== INITIALIZATION =====
 window.addEventListener('DOMContentLoaded', () => {
-    logEl = document.getElementById('event-log');
-    alarmListEl = document.getElementById('alarm-list');
+    // Cache DOM elements
+    const ids = [
+        'core-temp-value', 'primary-pressure-value', 'rod-depth-display', 'boron-conc-display',
+        'sg-water-level-value', 'secondary-pressure-value', 'turbine-rpm-value', 'phase-angle-value',
+        'grid-demand-value', 'money-value', 'event-log', 'scram-btn', 'steam-valve-btn', 'breaker-btn',
+        'annun-scram', 'annun-primary-overpressure', 'annun-core-void', 'annun-grid-mismatch', 'annun-sg-low', 'annun-turbine-trip'
+    ];
+    ids.forEach(id => DOMElements[id] = document.getElementById(id));
+
     initFirebase();
-    updateAllDisplays();
+    setInterval(gameLoop, TICK_RATE_MS);
+    setInterval(saveGameData, SAVE_INTERVAL_MS);
+    logEvent('System Initialized. Ready for startup.', 'system');
 });
 
+// ===== FIREBASE INTEGRATION =====
 function initFirebase() {
-    auth.signInAnonymously().then(userCredential => {
-        state.uid = userCredential.user.uid;
-        logEvent('info', 'Firebase anonymous authentication successful.');
-        // Set up the recurring save function
-        setInterval(savePlayerData, SAVE_INTERVAL);
+    const auth = firebase.auth();
+    auth.signInAnonymously().then(credential => {
+        state.user = credential.user;
+        logEvent(`Anonymous user signed in: ${state.user.uid}`, 'success');
     }).catch(error => {
-        logEvent('danger', `Firebase Auth Error: ${error.message}`);
+        logEvent(`Firebase Auth Error: ${error.message}`, 'danger');
     });
 }
 
-function startGame() {
-    document.getElementById('start-overlay').classList.add('hidden');
-    state.running = true;
-    logEvent('info', 'Simulation started.');
-    gameLoop();
-}
-
-function restartGame() { location.reload(); }
-
-// ===== GAME LOOP (1-second interval) =====
-function gameLoop() {
-    if (!state.running || state.gameOver) return;
-
-    simulatePhysics();
-    checkAlarms();
-    updateAllDisplays();
-
-    setTimeout(gameLoop, TICK_RATE);
-}
-
-
-// ===== PHYSICS SIMULATION =====
-function simulatePhysics() {
-    // --- Temperature Calculation ---
-    const rodEffectiveness = 1 - (state.controlRodDepth / 100); // 0 (in) to 1 (out)
-    const pumpEffectiveness = state.coolantPumpOutput / 100; // 0 to 1
-    
-    // Exponential temperature increase based on rods, cooled by pumps
-    let tempChange = (rodEffectiveness * 5) * Math.exp(rodEffectiveness * 0.5) - (pumpEffectiveness * 10);
-    state.coreTemp += tempChange;
-    state.coreTemp = Math.max(20, state.coreTemp);
-
-    // --- Steam Pressure Calculation ---
-    if(state.coreTemp > 100) {
-        // Pressure builds faster at higher temperatures
-        let pressureIncrease = (state.coreTemp / MAX_CORE_TEMP) * 2;
-        state.steamPressure += pressureIncrease;
-    }
-    state.steamPressure = Math.min(MAX_STEAM_PRESSURE, Math.max(0, state.steamPressure));
-
-    // --- Turbine and Generator ---
-    if(state.steamPressure > 10) {
-        state.turbineRPM = (state.steamPressure / MAX_STEAM_PRESSURE) * 3500;
-        state.generatorOutput = (state.turbineRPM / 3000) * (state.coreTemp/MAX_CORE_TEMP) * 1000;
-    } else {
-        state.turbineRPM = 0;
-        state.generatorOutput = 0;
-    }
-    state.generatorOutput = Math.max(0, state.generatorOutput);
-
-    // --- Revenue ---
-    state.revenue += state.generatorOutput * 0.1; // Arbitrary revenue calculation
-
-    // --- Meltdown Check ---
-    if (state.coreTemp >= MAX_CORE_TEMP) {
-        triggerMeltdown();
-    }
-}
-
-// ===== FIREBASE DATA SAVE =====
-function savePlayerData() {
-    if (!state.uid || state.gameOver) return;
-
+function saveGameData() {
+    if (!state.user || state.gameOver) return;
+    const db = firebase.firestore();
     const saveData = {
-        coreTemp: state.coreTemp,
-        revenue: state.revenue,
-        steamPressure: state.steamPressure,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        coreTemperature: state.coreTemperature,
+        primaryPressure: state.primaryPressure,
+        boronConcentration: state.boronConcentration,
+        sgWaterLevel: state.sgWaterLevel,
+        secondaryPressure: state.secondaryPressure,
+        turbineRpm: state.turbineRpm,
+        accumulatedMoney: state.accumulatedMoney,
+        isScrammed: state.isScrammed,
+        lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
     };
-
-    db.collection('player_saves').doc(state.uid).set(saveData)
-        .then(() => {
-            logEvent('info', 'Game state saved to cloud.');
-        })
-        .catch(error => {
-            logEvent('warning', `Save failed: ${error.message}`);
-        });
+    db.collection('player_saves').doc(state.user.uid).set(saveData, { merge: true })
+        .then(() => logEvent('Cloud sync complete.', 'system'))
+        .catch(error => logEvent(`Save Error: ${error.message}`, 'danger'));
 }
 
-// ===== ALARMS =====
-function checkAlarms() {
-    state.alarms = []; // Reset alarms each tick
-    if (state.steamPressure > PRESSURE_ALARM_THRESHOLD) {
-        state.alarms.push({ text: 'HIGH STEAM PRESSURE', level: 'danger' });
+// ===== CORE GAME LOOP =====
+function gameLoop() {
+    if (state.gameOver) return;
+
+    // Run simulation modules
+    simulateCore();
+    simulateSecondaryLoop();
+    simulateTurbineAndGrid();
+    updateAnnunciator();
+
+    // Update all UI readouts
+    updateUI();
+}
+
+// ===== SIMULATION MODULES =====
+function simulateCore() {
+    if (state.isScrammed) {
+        // Rapidly cool down if SCRAMmed
+        state.coreTemperature = Math.max(20, state.coreTemperature * 0.95);
+        return;
     }
-    if (state.coreTemp > 800) {
-        state.alarms.push({ text: 'CRITICAL CORE TEMP', level: 'danger' });
+
+    // Reactivity calculation
+    const rodReactivity = 1 - (state.controlRodsDepth / 100); // 0 to 1
+    const boronDampening = state.boronConcentration / 8000; // 0 to 0.5
+    const netReactivity = Math.max(0, rodReactivity - boronDampening);
+
+    // Temperature change - exponential based on reactivity
+    const tempIncrease = netReactivity * Math.exp(netReactivity * 1.5) * 5;
+    state.coreTemperature += tempIncrease;
+
+    // Pressure increases with temperature
+    state.primaryPressure = state.coreTemperature * 0.08;
+    
+    // Simple cooling effect
+    state.coreTemperature *= 0.998;
+}
+
+function simulateSecondaryLoop() {
+    // Heat transfer from primary to secondary
+    if (state.coreTemperature > 100) {
+        const energyTransfer = (state.coreTemperature - 100) / 50;
+        state.secondaryPressure += energyTransfer;
+        state.sgWaterLevel -= energyTransfer * 0.1;
     }
-    renderAlarms();
+
+    // Steam usage by turbine
+    if (state.mainSteamValveOpen && state.secondaryPressure > 1) {
+        const steamDraw = state.turbineRpm / 1000;
+        state.secondaryPressure -= steamDraw;
+    }
+
+    // Clamp values
+    state.sgWaterLevel = Math.max(0, state.sgWaterLevel);
+    state.secondaryPressure = Math.max(1, state.secondaryPressure);
 }
 
-function renderAlarms() {
-    alarmListEl.innerHTML = state.alarms.map(a => 
-        `<span class="alarm-item ${a.level}">${a.text}</span>`
-    ).join('');
-    document.getElementById('alarm-bar').classList.toggle('has-alarms', state.alarms.length > 0);
-}
+function simulateTurbineAndGrid() {
+    // Turbine RPM based on steam pressure
+    if (state.mainSteamValveOpen) {
+        const targetRpm = (state.secondaryPressure / 80) * MAX_TURBINE_RPM;
+        state.turbineRpm = approach(state.turbineRpm, targetRpm, 150);
+    } else {
+        state.turbineRpm = approach(state.turbineRpm, 0, 100);
+    }
 
-// ===== CONTROLS =====
-function updateRodPosition(val) {
-    state.controlRodDepth = parseInt(val);
-}
-
-function toggleSwitch(name) {
-    if(name === 'primaryPump') {
-        state.coolantPumpOn = !state.coolantPumpOn;
-        // For simplicity, let's say pump output is 100% when on.
-        state.coolantPumpOutput = state.coolantPumpOn ? 100 : 0;
-        document.getElementById('primary-pump-btn').className = state.coolantPumpOn ? 'btn btn-small btn-on' : 'btn btn-small btn-off';
+    // Phase Angle Drift
+    const rpmDifference = state.turbineRpm - BASELINE_RPM;
+    const drift = rpmDifference / 20; // Degrees per second
+    state.gridPhaseAngle = (state.gridPhaseAngle + drift) % 360;
+    if (state.gridPhaseAngle < 0) state.gridPhaseAngle += 360;
+    
+    // Revenue Generation
+    if(state.gridConnected) {
+        state.accumulatedMoney += state.gridDemand * 0.1;
     }
 }
 
-function ventSteam() {
-    if(state.steamPressure > 0) {
-        state.steamPressure -= 15;
-        logEvent('warning', 'Manual steam vent activated.');
+// ===== UI & CONTROLS =====
+function updateUI() {
+    DOMElements['core-temp-value'].textContent = `${state.coreTemperature.toFixed(1)} °C`;
+    DOMElements['primary-pressure-value'].textContent = `${state.primaryPressure.toFixed(1)} Bar`;
+    DOMElements['rod-depth-display'].textContent = state.controlRodsDepth;
+    DOMElements['boron-conc-display'].textContent = state.boronConcentration;
+    DOMElements['sg-water-level-value'].textContent = `${state.sgWaterLevel.toFixed(1)} %`;
+    DOMElements['secondary-pressure-value'].textContent = `${state.secondaryPressure.toFixed(1)} Bar`;
+    DOMElements['turbine-rpm-value'].textContent = `${state.turbineRpm.toFixed(0)} RPM`;
+    DOMElements['phase-angle-value'].textContent = `${state.gridPhaseAngle.toFixed(1)} °`;
+    DOMElements['money-value'].textContent = `$${Math.floor(state.accumulatedMoney)}`;
+}
+
+function updateAnnunciator() {
+    setIndicator('annun-scram', state.isScrammed);
+    setIndicator('annun-primary-overpressure', state.primaryPressure > 160);
+    setIndicator('annun-core-void', state.sgWaterLevel < 10);
+    
+    const phaseDiff = Math.abs((state.gridPhaseAngle + 180) % 360 - 180);
+    setIndicator('annun-grid-mismatch', phaseDiff > PHASE_LOCK_TOLERANCE && !state.gridConnected);
+}
+
+function setIndicator(id, isActive) {
+    DOMElements[id].classList.toggle('active', isActive);
+}
+
+function updateControlRods(value) { state.controlRodsDepth = parseInt(value); }
+
+function adjustBoron(amount) {
+    state.boronConcentration = Math.max(0, Math.min(4000, state.boronConcentration + amount));
+    logEvent(`Boron concentration adjusted to ${state.boronConcentration} ppm.`, 'control');
+}
+
+function toggleSteamValve() {
+    state.mainSteamValveOpen = !state.mainSteamValveOpen;
+    DOMElements['steam-valve-btn'].textContent = state.mainSteamValveOpen ? 'OPEN' : 'CLOSED';
+    DOMElements['steam-valve-btn'].classList.toggle('btn-on', state.mainSteamValveOpen);
+    DOMElements['steam-valve-btn'].classList.toggle('btn-off', !state.mainSteamValveOpen);
+    logEvent(`Main Steam Valve ${state.mainSteamValveOpen ? 'Opened' : 'Closed'}.`, 'control');
+}
+
+function toggleMainBreaker() {
+    const phaseDifference = Math.min(state.gridPhaseAngle, 360 - state.gridPhaseAngle);
+    if (!state.gridConnected && phaseDifference > PHASE_LOCK_TOLERANCE) {
+        // Grid Explosion!
+        state.accumulatedMoney -= GRID_MISMATCH_PENALTY;
+        activateSCRAM();
+        logEvent('GRID EXPLOSION! Phase mismatch lockout failed.', 'danger');
+        triggerMajorFailure('GRID EXPLOSION', `Phase mismatch of ${phaseDifference.toFixed(1)}° caused a catastrophic grid failure. Financial penalty applied.`);
+        return;
     }
+
+    state.gridConnected = !state.gridConnected;
+    DOMElements['breaker-btn'].textContent = state.gridConnected ? 'CONNECTED' : 'OPEN';
+    DOMElements['breaker-btn'].classList.toggle('btn-on', state.gridConnected);
+    DOMElements['breaker-btn'].classList.toggle('btn-off', !state.gridConnected);
+    logEvent(`Main Breaker ${state.gridConnected ? 'Connected to Grid' : 'Disconnected'}.`, state.gridConnected ? 'success' : 'warning');
 }
 
 function activateSCRAM() {
-    state.controlRodDepth = 100;
-    logEvent('danger', 'SCRAM ACTIVATED! Control rods fully inserted.');
+    state.isScrammed = true;
+    state.controlRodsDepth = 100; // Force rods in
+    state.mainSteamValveOpen = false; // Trip turbine
+    state.gridConnected = false; // Disconnect from grid
+    logEvent('EMERGENCY REACTOR SCRAM INITIATED', 'danger');
 }
 
-// ===== DISPLAY UPDATES =====
-function updateAllDisplays() {
-    // Core
-    document.getElementById('core-temp-value').textContent = `${state.coreTemp.toFixed(1)}°C`;
-    document.getElementById('steam-pressure-value').textContent = `${state.steamPressure.toFixed(1)} bar`;
-    document.getElementById('rod-pos-display').textContent = `${state.controlRodDepth}%`;
-    document.getElementById('control-rods').value = state.controlRodDepth;
-
-    // Visual Bars
-    setGaugeBar('core-temp-bar', state.coreTemp, MAX_CORE_TEMP);
-    setGaugeBar('steam-pressure-bar', state.steamPressure, MAX_STEAM_PRESSURE);
-
-    // Turbine & Revenue
-    document.getElementById('turbine-rpm-value').textContent = `${state.turbineRPM.toFixed(0)} RPM`;
-    document.getElementById('generator-output-value').textContent = `${state.generatorOutput.toFixed(0)} MW`;
-    document.getElementById('revenue-value').textContent = `$${state.revenue.toFixed(0)}`;
-}
-
-function setGaugeBar(id, value, max) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const pct = Math.min(100, Math.max(0, (value / max) * 100));
-    el.style.width = pct + '%';
-    // Add color logic based on percentage
-    if (pct > 85) el.className = 'gauge-bar danger';
-    else if (pct > 60) el.className = 'gauge-bar orange';
-    else el.className = 'gauge-bar green';
-}
-
-function triggerMeltdown() {
+function triggerMajorFailure(title, message) {
     state.gameOver = true;
-    state.running = false;
-    const overlay = document.getElementById('game-over-overlay');
-    overlay.classList.remove('hidden');
-    document.getElementById('game-over-message').textContent = `Core meltdown at ${state.coreTemp.toFixed(0)}°C. Catastrophic failure.`;
+    document.getElementById('game-over-overlay').classList.remove('hidden');
+    document.getElementById('game-over-title').textContent = title;
+    document.getElementById('game-over-message').textContent = message;
 }
 
-function logEvent(level, message) {
-    const entry = document.createElement('div');
-    entry.className = `log-entry log-${level}`;
-    entry.innerHTML = `<span class="log-time">[${new Date().toLocaleTimeString()}]</span> ${message}`;
-    logEl.appendChild(entry);
-    logEl.scrollTop = logEl.scrollHeight;
+// ===== UTILITY FUNCTIONS =====
+function approach(current, target, rate) {
+    if (current < target) return Math.min(current + rate, target);
+    if (current > target) return Math.max(current - rate, target);
+    return target;
+}
+
+function logEvent(message, type = 'info') {
+    const log = DOMElements['event-log'];
+    const time = new Date().toLocaleTimeString();
+    log.innerHTML += `<div class="log-${type}">[${time}] ${message}</div>`;
+    log.scrollTop = log.scrollHeight;
 }

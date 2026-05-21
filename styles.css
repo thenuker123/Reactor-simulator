@@ -1,15 +1,26 @@
-/* NUCLEARES - Complex Reactor Simulator Styles */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+/*
+* NUCLEARES - High-Fidelity Reactor Simulation Styles
+*/
+
+/* ----- Base & Fonts ----- */
+:root {
+    --bg-color: #0a0c10;
+    --panel-bg: #0d1117;
+    --border-color: #30363d;
+    --text-color: #c9d1d9;
+    --text-muted: #8b949e;
+    --accent-blue: #58a6ff;
+    --accent-red: #f85149;
+    --accent-yellow: #d29922;
+    --accent-green: #3fb950;
 }
 
 body {
-    background: #0d1117;
-    color: #c9d1d9;
-    font-family: 'Roboto Mono', 'Lucida Console', monospace;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Roboto Mono', monospace;
     font-size: 14px;
+    margin: 0;
     overflow: hidden;
 }
 
@@ -19,54 +30,139 @@ body {
     height: 100vh;
 }
 
-/* ===== Grid Layout ===== */
-#main-content { display: grid; grid-template-columns: 1fr 1.5fr 1fr; flex: 1; gap: 1px; background-color: #21262d; }
-.panel { background-color: #0d1117; padding: 15px; overflow-y: auto; }
-#top-bar, #bottom-bar, #alarm-bar { background-color: #161b22; border-bottom: 1px solid #21262d; padding: 8px 16px; flex-shrink: 0; }
-#alarm-bar { min-height: 30px; }
+/* ----- Annunciator Panel ----- */
+#annunciator-panel {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1px;
+    background-color: var(--border-color);
+    padding: 1px;
+    flex-shrink: 0;
+}
 
-/* Text & Headings */
-h2 { color: #58a6ff; font-size: 14px; letter-spacing: 1px; text-align: center; border-bottom: 1px solid #21262d; padding-bottom: 8px; margin-bottom: 15px; }
-.gauge-label { font-size: 11px; color: #8b949e; text-transform: uppercase; margin-bottom: 4px; }
-.gauge-value { font-size: 14px; font-weight: 700; color: #f0f6fc; text-align: right; }
+.indicator {
+    background-color: #21262d;
+    color: var(--text-muted);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    padding: 8px 5px;
+    transition: all 0.2s;
+    opacity: 0.5;
+}
 
-/* Gauges & Bars */
-.gauge-bar-container { background: #010409; border: 1px solid #21262d; height: 25px; border-radius: 4px; overflow: hidden; position: relative; padding: 2px; }
-.gauge-bar { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
-.gauge-bar.green { background-color: #2e8555; }
-.gauge-bar.orange { background-color: #d29922; }
-.gauge-bar.danger { background-color: #da3633; animation: bar-pulse 0.7s infinite; }
+.indicator.active {
+    background-color: var(--accent-red);
+    color: white;
+    opacity: 1;
+    animation: flash 1s infinite;
+}
 
-/* Controls */
-.control-group, .subsystem { margin-bottom: 15px; background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 12px; }
-.btn { font-family: inherit; font-size: 12px; font-weight: bold; padding: 8px 15px; border-radius: 5px; cursor: pointer; text-transform: uppercase; transition: all 0.2s; }
-.btn-off { background-color: #21262d; border: 1px solid #30363d; color: #8b949e; }
+@keyframes flash { 50% { background-color: var(--accent-yellow); color: black; } }
+
+/* ----- Main Layout ----- */
+#main-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    flex-grow: 1;
+    gap: 1px;
+    background-color: var(--border-color);
+    overflow: hidden;
+}
+
+.panel {
+    background-color: var(--panel-bg);
+    padding: 15px;
+    overflow-y: auto;
+}
+
+.panel h2 {
+    font-family: 'Orbitron', sans-serif;
+    color: var(--accent-blue);
+    font-size: 16px;
+    text-align: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+/* ----- Subsystems & Readouts ----- */
+.subsystem {
+    background-color: #161b22;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.subsystem h3 {
+    color: var(--text-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    margin-bottom: 15px;
+}
+
+.readout-group { display: flex; flex-direction: column; gap: 10px; }
+.readout { display: flex; justify-content: space-between; align-items: center; }
+.readout label { color: var(--text-muted); }
+.readout span { font-weight: 700; font-size: 16px; }
+
+/* ----- Controls ----- */
+.control-group { margin-top: 20px; }
+.control-group label { display: block; margin-bottom: 8px; }
+.button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.btn, button {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s ease;
+    width: 100%;
+    border: 1px solid var(--border-color);
+}
+
+.btn-off { background-color: #21262d; color: var(--text-muted); }
 .btn-off:hover { background-color: #30363d; }
-.btn-on { background-color: #238636; border: 1px solid #2ea043; color: #f0f6fc; box-shadow: 0 0 10px rgba(46, 160, 67, 0.5); }
-.btn-danger { background-color: #b9322b; border: 1px solid #da3633; color: #f0f6fc; }
-.btn-danger:hover { background-color: #da3633; }
-.btn-warning { background-color: #c28b1a; border: 1px solid #d29922; color: #f0f6fc; }
-.btn-warning:hover { background-color: #d29922; }
-input[type="range"] { width: 100%; -webkit-appearance: none; background: #010409; border: 1px solid #21262d; border-radius: 4px; height: 10px; }
-input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 20px; background: #58a6ff; border-radius: 2px; cursor: pointer; }
 
-/* Alarms */
-#alarm-bar.has-alarms { background-color: #3d1f1f; }
-.alarm-item { color: #f85149; font-weight: 700; animation: alarm-blink 1.2s infinite; margin: 0 15px; }
+.btn-on { background-color: var(--accent-green); color: white; box-shadow: 0 0 10px var(--accent-green); }
+.btn-on:hover { filter: brightness(1.2); }
 
-/* Log */
-#bottom-bar { height: 150px; }
-.log-entry { font-size: 12px; line-height: 1.6; }
-.log-time { color: #6e7681; margin-right: 10px; }
-.log-info { color: #8b949e; }
-.log-danger { color: #f85149; font-weight: 700; }
+.btn-danger { background-color: var(--accent-red); color: white; }
+.btn-danger:hover { filter: brightness(1.2); }
 
-/* Overlays */
-#start-overlay, #game-over-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(13, 17, 23, 0.9); display: flex; align-items: center; justify-content: center; z-index: 100; }
-#start-content, #game-over-content { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 40px; max-width: 600px; text-align: center; }
-h1 { color: #58a6ff; margin-bottom: 10px; }
-#game-over-content h1 { color: #da3633; }
+input[type="range"] {
+    width: 100%;
+    -webkit-appearance: none;
+    background: #010409;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    height: 10px;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 20px;
+    background: var(--accent-blue);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+/* ----- Bottom Log Bar ----- */
+#bottom-bar { background-color: #161b22; border-top: 1px solid var(--border-color); padding: 10px; height: 120px; display: flex; flex-direction: column; flex-shrink: 0; }
+#event-log { flex-grow: 1; overflow-y: auto; font-size: 12px; }
+.log-system { color: var(--text-muted); }
+.log-control { color: var(--accent-blue); }
+.log-success { color: var(--accent-green); }
+.log-warning { color: var(--accent-yellow); }
+.log-danger { color: var(--accent-red); font-weight: 700; }
+
+/* ----- Game Over Overlay ----- */
 .hidden { display: none !important; }
-
-@keyframes bar-pulse { 50% { opacity: 0.7; } }
-@keyframes alarm-blink { 50% { opacity: 0.5; } }
+#game-over-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; text-align: center; z-index: 100; }
+#game-over-content { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 40px; border-radius: 8px; }
+#game-over-content h1 { color: var(--accent-red); }

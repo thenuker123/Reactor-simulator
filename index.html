@@ -2,193 +2,124 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=1400, initial-scale=1.0">
-    <title>Nucleares - Nuclear Reactor Simulator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nucleares - High Fidelity Reactor Simulation</title>
     <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div id="game-container">
-        <!-- Top Bar -->
-        <div id="top-bar">
-            <div id="plant-name">NUCLEARES - PWR Nuclear Power Plant Simulator</div>
-            <div id="clock"></div>
-            <div id="game-speed">
-                <button onclick="setSpeed(0)" title="Pause">⏸</button>
-                <button onclick="setSpeed(1)" title="1x Speed">1x</button>
-                <button onclick="setSpeed(5)" title="5x Speed">5x</button>
-                <button onclick="setSpeed(10)" title="10x Speed">10x</button>
-            </div>
+        <!-- Annunciator Panel -->
+        <div id="annunciator-panel">
+            <div class="indicator" id="annun-scram">REACTOR SCRAM</div>
+            <div class="indicator" id="annun-primary-overpressure">PRIMARY OVERPRESSURE</div>
+            <div class="indicator" id="annun-core-void">CORE CAVITATION/VOID</div>
+            <div class="indicator" id="annun-grid-mismatch">GRID PHASE MISMATCH</div>
+            <div class="indicator" id="annun-sg-low">SG WATER LOW</div>
+            <div class="indicator" id="annun-turbine-trip">TURBINE TRIP</div>
         </div>
 
-        <!-- Alarm Bar -->
-        <div id="alarm-bar">
-            <div id="alarm-list"></div>
-        </div>
-
-        <!-- Main Content -->
+        <!-- Main Content Grid -->
         <div id="main-content">
-            <!-- Left Panel: Reactor Core -->
-            <div id="left-panel" class="panel">
-                <h2>REACTOR CORE</h2>
-                <div class="reactor-visual">
-                    <canvas id="reactor-canvas" width="280" height="200"></canvas>
-                </div>
-                <div class="gauge-row">
-                    <div class="gauge">
-                        <div class="gauge-label">Core Temp</div>
-                        <div class="gauge-bar-container">
-                            <div id="core-temp-bar" class="gauge-bar"></div>
-                        </div>
-                        <div id="core-temp-value" class="gauge-value">20°C</div>
-                    </div>
-                    <div class="gauge">
-                        <div class="gauge-label">Reactor Power</div>
-                        <div class="gauge-bar-container">
-                            <div id="reactor-power-bar" class="gauge-bar green"></div>
-                        </div>
-                        <div id="reactor-power-value" class="gauge-value">0%</div>
+            <!-- CONSOLE 01: Primary Loop -->
+            <div id="console-01" class="panel">
+                <h2>CONSOLE 01: PRIMARY LOOP</h2>
+                <div class="subsystem">
+                    <h3>CORE THERMODYNAMICS</h3>
+                    <div class="readout-group">
+                        <div class="readout"><label>Core Temperature</label><span id="core-temp-value">20.0 °C</span></div>
+                        <div class="readout"><label>Primary Pressure</label><span id="primary-pressure-value">1.0 Bar</span></div>
                     </div>
                 </div>
-                 <div class="gauge-row">
-                    <div class="gauge">
-                        <div class="gauge-label">Water Level</div>
-                        <div class="gauge-bar-container">
-                            <div id="water-level-bar" class="gauge-bar blue"></div>
-                        </div>
-                        <div id="water-level-value" class="gauge-value">100%</div>
+                <div class="subsystem">
+                    <h3>REACTIVITY CONTROL</h3>
+                    <div class="control-group">
+                        <label>Control Rods Depth: <span id="rod-depth-display">100</span>%</label>
+                        <input type="range" id="control-rods" min="0" max="100" value="100" oninput="updateControlRods(this.value)">
                     </div>
-                    <div class="gauge">
-                        <div class="gauge-label">Steam Pressure</div>
-                        <div class="gauge-bar-container">
-                            <div id="steam-pressure-bar" class="gauge-bar orange"></div>
+                    <div class="control-group">
+                        <label>Boron Concentration: <span id="boron-conc-display">0</span> ppm</label>
+                        <div class="button-group">
+                            <button onclick="adjustBoron(100)">+100 ppm</button>
+                            <button onclick="adjustBoron(-100)">-100 ppm</button>
                         </div>
-                        <div id="steam-pressure-value" class="gauge-value">0 bar</div>
                     </div>
                 </div>
-                <div class="control-group">
-                    <label>Control Rods Depth: <span id="rod-pos-display">100%</span></label>
-                    <input type="range" id="control-rods" min="0" max="100" value="100" oninput="updateRodPosition(this.value)">
-                    <div class="rod-labels"><span>0% (Out)</span><span>100% (In)</span></div>
-                </div>
-                <div class="control-group">
-                    <label>Fuel Status: <span id="fuel-status">NOT LOADED</span></label>
-                    <button id="fuel-btn" class="btn btn-warning" onclick="toggleFuel()">LOAD FUEL</button>
+                <div class="subsystem">
+                    <h3>EMERGENCY</h3>
+                    <button id="scram-btn" class="btn btn-danger btn-large" onclick="activateSCRAM()">SCRAM</button>
                 </div>
             </div>
 
-            <!-- Center Panel: Systems -->
-            <div id="center-panel" class="panel">
-                <h2>PRIMARY & SECONDARY SYSTEMS</h2>
+            <!-- CONSOLE 02: Secondary Loop -->
+            <div id="console-02" class="panel">
+                <h2>CONSOLE 02: SECONDARY LOOP</h2>
                 <div class="subsystem">
-                    <h3>Primary Coolant Loop</h3>
-                    <div class="inline-controls">
-                        <div class="switch-group">
-                            <label>Coolant Pump</label>
-                            <button id="primary-pump-btn" class="btn btn-small btn-off" onclick="toggleSwitch('primaryPump')">OFF</button>
-                        </div>
-                        <div class="slider-group">
-                            <label>Pump Output: <span id="primary-pump-speed-display">0</span>%</label>
-                            <input type="range" id="primary-pump-speed" min="0" max="100" value="0" oninput="updatePumpSpeed('primary', this.value)">
-                        </div>
-                        <div class="mini-gauge">
-                            <span>Flow Rate:</span>
-                            <span id="primary-flow-value">0 kg/s</span>
-                        </div>
+                    <h3>STEAM GENERATOR</h3>
+                    <div class="readout-group">
+                        <div class="readout"><label>SG Water Level</label><span id="sg-water-level-value">100.0 %</span></div>
+                        <div class="readout"><label>Secondary Pressure</label><span id="secondary-pressure-value">0.0 Bar</span></div>
+                    </div>
+                    <div class="control-group">
+                        <label>Main Steam Valve</label>
+                        <button id="steam-valve-btn" class="btn btn-off" onclick="toggleSteamValve()">CLOSED</button>
                     </div>
                 </div>
-                <!-- Steam & Turbine -->
                 <div class="subsystem">
-                    <h3>Turbine & Generator</h3>
-                    <div class="gauge-row">
-                        <div class="gauge">
-                            <div class="gauge-label">Turbine RPM</div>
-                            <div class="gauge-bar-container">
-                                <div id="turbine-rpm-bar" class="gauge-bar cyan"></div>
-                            </div>
-                            <div id="turbine-rpm-value" class="gauge-value">0 RPM</div>
-                        </div>
-                        <div class="gauge">
-                            <div class="gauge-label">Generator Output</div>
-                            <div class="gauge-bar-container">
-                                <div id="generator-output-bar" class="gauge-bar green"></div>
-                            </div>
-                            <div id="generator-output-value" class="gauge-value">0 MW</div>
-                        </div>
-                    </div>
-                     <div class="mini-gauge">
-                        <span>Revenue:</span>
-                        <span id="revenue-value">$0</span>
+                    <h3>TURBINE & GENERATOR</h3>
+                    <div class="readout-group">
+                        <div class="readout"><label>Turbine RPM</label><span id="turbine-rpm-value">0 RPM</span></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Right Panel: Emergency & Grid -->
-            <div id="right-panel" class="panel">
-                <h2>EMERGENCY & GRID</h2>
-                <div class="subsystem emergency-panel">
-                    <h3>EMERGENCY SYSTEMS</h3>
-                    <div class="inline-controls">
-                        <button id="scram-btn" class="btn btn-danger btn-large" onclick="activateSCRAM()">SCRAM</button>
-                         <button id="vent-steam-btn" class="btn btn-warning" onclick="ventSteam()">VENT STEAM</button>
+            <!-- CONSOLE 03: Grid & Capital -->
+            <div id="console-03" class="panel">
+                <h2>CONSOLE 03: GRID & CAPITAL</h2>
+                <div class="subsystem">
+                    <h3>GRID SYNCHRONIZATION</h3>
+                    <div class="readout-group">
+                        <div class="readout"><label>Grid Phase Angle</label><span id="phase-angle-value">0.0 °</span></div>
+                        <div class="readout"><label>Grid Demand</label><span id="grid-demand-value">300 MW</span></div>
                     </div>
-                     <div class="inline-controls" style="margin-top: 8px;">
-                        <div class="mini-gauge">
-                            <span>Radiation:</span>
-                            <span id="radiation-value">0.1 mSv/h</span>
-                        </div>
-                        <div class="mini-gauge">
-                            <span>Containment:</span>
-                            <span id="containment-value">NORMAL</span>
-                        </div>
+                     <div class="control-group">
+                        <label>Main Circuit Breaker</label>
+                        <button id="breaker-btn" class="btn btn-off" onclick="toggleMainBreaker()">OPEN</button>
                     </div>
                 </div>
-                 <div class="subsystem">
-                    <h3>Grid Connection</h3>
-                    <div class="inline-controls">
-                        <div class="switch-group">
-                            <label>Circuit Breaker</label>
-                            <button id="breaker-btn" class="btn btn-small btn-off" onclick="toggleSwitch('circuitBreaker')">OPEN</button>
-                        </div>
-                         <div class="mini-gauge">
-                            <span>Grid Frequency:</span>
-                            <span id="grid-frequency-value">0 Hz</span>
-                        </div>
+                <div class="subsystem">
+                    <h3>PLANT FINANCIALS</h3>
+                     <div class="readout-group">
+                        <div class="readout"><label>Accumulated Capital</label><span id="money-value">$0</span></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Bottom: Event Log -->
+        <!-- Bottom Bar -->
         <div id="bottom-bar">
             <h3>OPERATOR LOG</h3>
             <div id="event-log"></div>
         </div>
-
-        <!-- Overlays -->
+        
+        <!-- Game Over Overlay -->
         <div id="game-over-overlay" class="hidden">
             <div id="game-over-content">
                 <h1 id="game-over-title">MELTDOWN</h1>
                 <p id="game-over-message"></p>
-                <p id="game-over-stats"></p>
-                <button class="btn btn-warning btn-large" onclick="restartGame()">RESTART</button>
-            </div>
-        </div>
-        <div id="start-overlay">
-            <div id="start-content">
-                <h1>NUCLEARES</h1>
-                <h2>Complex Reactor Simulator</h2>
-                <p>Your mission is to manage a nuclear reactor, generate power, and maintain stability. Beware of temperature and pressure thresholds.</p>
-                <button class="btn btn-success btn-large" onclick="startGame()">START SIMULATION</button>
+                <button class="btn btn-warning" onclick="location.reload()">RESTART SIMULATION</button>
             </div>
         </div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <!-- Firebase v10 Compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
     <script>
+      // Firebase v10 Compat Configuration
       // IMPORTANT: Replace with your actual Firebase project configuration
       const firebaseConfig = {
         apiKey: "AIzaSyYOUR_API_KEY_HERE",
@@ -201,8 +132,6 @@
 
       // Initialize Firebase
       firebase.initializeApp(firebaseConfig);
-      const db = firebase.firestore();
-      const auth = firebase.auth();
     </script>
     <script src="game.js"></script>
 </body>
